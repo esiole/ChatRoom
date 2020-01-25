@@ -34,14 +34,36 @@ function generateChatRoomId() {
     if (!rooms.has(roomID)) {
         rooms.add(roomID);
 
+        let users = new Set();
+        //let users = [];
         io.of(`/${roomID}`).on('connection', (socket) => {
             socket.on('start', (msg) => {
                 socket['name'] = msg.name;
+                if (users.has(msg.name)) {
+                    //пользоватеь уже был введён
+                    socket.json.emit('badName', {});
+                } else {
+                    users.add(msg.name);
+                    //users.push(msg.name);
+                    socket.json.emit('users', {users: [...users]});
+                    socket.broadcast.json.emit('users', {users: [...users]});
+                    //console.log(users);
+                    //socket.json.emit('users', {users: users});
+                    //socket.broadcast.json.emit('users', {users: users});
+                }
+            });
+
+            socket.on('disconnect', (msg) => {
+                users.delete(`${socket['name']}`);
+                socket.json.emit('users', {users: [...users]});
+                socket.broadcast.json.emit('users', {users: [...users]});
             });
 
             socket.on('msg', (msg) => {
-                socket.json.emit('msg', msg);
-                socket.broadcast.json.emit('msg', msg);
+                let message = {...msg};
+                message.time = new Date().toLocaleTimeString('ru', {hour12: false}).substr(0, 8);
+                socket.json.emit('msg', message);
+                socket.broadcast.json.emit('msg', message);
             });
         });
 

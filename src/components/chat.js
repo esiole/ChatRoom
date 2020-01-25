@@ -2,7 +2,9 @@
 import React, {Component} from "react";
 import openSocket from 'socket.io-client';
 import {Enter} from "./enter";
-import {ListMessage} from "./listMessage";
+import {TextList} from "./textLst";
+import {Info} from "./info";
+import {UsersList} from "./usersList";
 
 export class Chat extends Component{
     constructor(props) {
@@ -11,21 +13,36 @@ export class Chat extends Component{
             //userName: localStorage.userName
             userName: sessionStorage.userName,
             roomID: this.props.match.params.id,
-            messages: ['Привет!', 'Хай!', 'Как дела?'],
-            userMessage: ''
+            messages: [],
+            userMessage: '',
+            usersInChat: [],
+            isShowUserList: false
         };
         this.userLogout = this.userLogout.bind(this);
         this.setUserName = this.setUserName.bind(this);
         this.changeMessage = this.changeMessage.bind(this);
         this.sendMessage = this.sendMessage.bind(this);
+        this.toggleUserList = this.toggleUserList.bind(this);
 
-        this.socket = openSocket(`http://localhost:3030/${this.state.roomID}`);
-        this.socket.on('connect', (msg) => {this.socket.json.emit('start', {"name": 'connect'});});
-        this.socket.on('msg', (msg) => {
-            let messages = this.state.messages;
-            messages.push(msg.message);
-            this.setState({messages: messages});
-        });
+        if (this.state.userName !== undefined) {
+            this.socket = openSocket(`http://localhost:3030/${this.state.roomID}`);
+            this.socket.on('connect', (msg) => {this.socket.json.emit('start', {"name": this.state.userName});});
+            this.socket.on('users', (msg) => {
+                this.setState({usersInChat: msg.users});
+                //this.setState({usersInChat: [...msg.users]}); //для Set
+            });
+            this.socket.on('msg', (msg) => {
+                let messages = this.state.messages;
+                //messages.push(`${msg.time}: ${msg.name}: ${msg.message}`);
+                messages.push({'time': msg.time, 'name': msg.name, 'message': msg.message});
+                this.setState({messages: messages});
+
+                document.getElementById('messagesList').scrollTop = document.getElementById('messagesList').scrollHeight;
+            });
+            this.socket.on('badName', (msg) => {
+               //имя было занято в этой комнате
+            });
+        }
     }
 
     setUserName(name) {
@@ -33,16 +50,27 @@ export class Chat extends Component{
     }
 
     changeMessage(event) {
+        if (event.target.value !== '') {
+            document.getElementById('submit').disabled = false;
+        } else {
+            document.getElementById('submit').disabled = true;
+        }
         this.setState({userMessage: event.target.value});
     }
 
     sendMessage(event) {
         event.preventDefault();
-        this.socket.json.emit('msg', {'message': this.state.userMessage});
+        this.socket.json.emit('msg', {'message': this.state.userMessage, 'name': this.state.userName});
         this.setState({userMessage: ''});
+        document.getElementById('submit').disabled = true;
     }
 
-    userLogout() {
+    toggleUserList(event) {
+        this.setState({isShowUserList: !this.state.isShowUserList});
+        event.preventDefault();
+    }
+
+    userLogout(event) {
         /*fetch('http://localhost:3333/user/logout', {
             method: 'POST',
             headers: {
@@ -52,7 +80,9 @@ export class Chat extends Component{
         }).then(response => response.json()).then(result => console.log(result));*/
 
         //delete localStorage.userName;
+        event.preventDefault();
         delete sessionStorage.userName;
+        window.location.assign(`http://localhost:3000/`);
     }
 
     render() {
@@ -60,19 +90,30 @@ export class Chat extends Component{
             return <Enter isRedirection={true} roomID={this.state.roomID} onUserNameChange={this.setUserName}/>
         }
         else {
+            let userList;
+            if (this.state.isShowUserList) {
+                userList = <UsersList messages={this.state.usersInChat} id={'usersList'}/>;
+            }
             return (
                 <div>
-                    ЧАТ
-                    <p>{this.props.match.params.id}</p>
-                    <p>{this.state.userName}</p>
-                    <form onSubmit={this.userLogout}>
+                    <Info userName={this.state.userName} roomID={this.props.match.params.id}/>
+                    <form onSubmit={this.userLogout} id="exitButton">
                         <input type="submit" value="Выйти"/>
                     </form>
-                    <ListMessage messages={this.state.messages}/>
-                    <form onSubmit={this.sendMessage}>
-                        <input type="text" onChange={this.changeMessage} placeholder="Сообщение..." value={this.state.userMessage}/>
-                        <input type="submit" value="Отправить"/>
-                    </form>
+                    {userList}
+                    <div id="chatArea">
+                        <h2 id="headingChat" className="inlineBlock">Чат комната</h2>
+                        <form onSubmit={this.toggleUserList} className="inlineBlock">
+                            <input type="submit" value="" id="userShowButton" title="Показать/скрыть список пользователей"/>
+                        </form>
+                        <div id="messageArea">
+                            <TextList messages={this.state.messages} id={'messagesList'}/>
+                            <form onSubmit={this.sendMessage}>
+                                <input type="text" onChange={this.changeMessage} placeholder="Сообщение..." value={this.state.userMessage} id="input"/>
+                                <input type="submit" value="Отправить" id="submit" disabled="true"/>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             )
         }
