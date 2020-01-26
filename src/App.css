@@ -40,6 +40,7 @@ input[type=submit] {
 
 #infoTable {
   text-align: left;
+  font-size: 1em;
   float: left;
   width: 25%;
 }
@@ -64,6 +65,7 @@ input[type=submit] {
 
 #headingChat {
   margin-top: 0;
+  font-size: 1.7em;
 }
 
 #usersList {
@@ -76,9 +78,11 @@ input[type=submit] {
   list-style-position: inside;
   background-color: white;
   border: 3px inset black;
+  font-size: 1em;
 }
 
 #messagesList {
+  font-size: 1em;
   background-color: white;
   border: 3px outset black;
   height: 550px;
@@ -136,4 +140,16 @@ input[type=submit] {
 
 .redText {
   color: red;
+}
+
+#notExistPage {
+  text-align: center;
+  font-size: 3em;
+  margin-top: 18%;
+}
+
+#copyButton {
+  width: 55%;
+  font-size: 1em;
+  height: 30px;
 }
