@@ -1,4 +1,4 @@
-//компонент для основого содержимого приложения
+// компонент для основого содержимого приложения
 import React, {Component} from "react";
 import openSocket from 'socket.io-client';
 import {Enter} from "./enter";
@@ -10,76 +10,71 @@ export class Chat extends Component{
     constructor(props) {
         super(props);
         this.state = {
-            //userName: localStorage.userName
-            userName: sessionStorage.userName,
-            roomID: this.props.match.params.id,
-            messages: [],
-            userMessage: '',
-            usersInChat: [],
-            isShowUserList: false
+            userName: sessionStorage.userName,  // имя пользователя
+            roomID: this.props.match.params.id, // id комнаты
+            messages: [],                       // список сообщений
+            userMessage: '',                    // введённое пользователем сообщение для отправки
+            usersInChat: [],                    // список пользователей в чате
+            isShowUserList: false,              // нужно ли показать список пользователей
+            isBadName: false                    // является ли введённое имя пользователя некорректным
         };
         this.userLogout = this.userLogout.bind(this);
         this.setUserName = this.setUserName.bind(this);
         this.changeMessage = this.changeMessage.bind(this);
         this.sendMessage = this.sendMessage.bind(this);
         this.toggleUserList = this.toggleUserList.bind(this);
+        this.setSocket = this.setSocket.bind(this);
+        this.setSocket();
+    }
 
+    // подключение сокетов
+    setSocket() {
         if (this.state.userName !== undefined) {
             this.socket = openSocket(`http://localhost:3030/${this.state.roomID}`);
-            this.socket.on('connect', (msg) => {this.socket.json.emit('start', {"name": this.state.userName});});
-            this.socket.on('users', (msg) => {
+            this.socket.on('connect', (msg) => {this.socket.json.emit('start', {'name': this.state.userName});});
+            this.socket.on('users', (msg) => {      // новый массив пользователей
                 this.setState({usersInChat: msg.users});
-                //this.setState({usersInChat: [...msg.users]}); //для Set
             });
-            this.socket.on('msg', (msg) => {
+            this.socket.on('msg', (msg) => {        // новое сообщение в чате
                 let messages = this.state.messages;
-                //messages.push(`${msg.time}: ${msg.name}: ${msg.message}`);
                 messages.push({'time': msg.time, 'name': msg.name, 'message': msg.message});
                 this.setState({messages: messages});
-
                 document.getElementById('messagesList').scrollTop = document.getElementById('messagesList').scrollHeight;
             });
-            this.socket.on('badName', (msg) => {
-               //имя было занято в этой комнате
+            this.socket.on('badName', (msg) => {    // некоррректное имя
+                delete sessionStorage.userName;
+                this.setState({'userName': undefined, 'isBadName': true});
             });
         }
     }
 
+    // для передачи изменения состояния из дочернего компонента
     setUserName(name) {
-        this.setState({userName: name})
+        this.setState({'userName': name, 'isBadName': false});
     }
 
+    // отслеживание изменения ввода сообщения, при пустом сообщении кнопка отправления недоступна
     changeMessage(event) {
-        if (event.target.value !== '') {
-            document.getElementById('submit').disabled = false;
-        } else {
-            document.getElementById('submit').disabled = true;
-        }
-        this.setState({userMessage: event.target.value});
+        document.getElementById('submit').disabled = event.target.value === '';
+        this.setState({'userMessage': event.target.value});
     }
 
+    // отправка сообщения
     sendMessage(event) {
         event.preventDefault();
         this.socket.json.emit('msg', {'message': this.state.userMessage, 'name': this.state.userName});
-        this.setState({userMessage: ''});
-        document.getElementById('submit').disabled = true;
+        this.setState({'userMessage': ''});                     // после отправки сообщения нужно очистить поле ввода
+        document.getElementById('submit').disabled = true;  // и сделать кнопку отправки недоступной
     }
 
+    // переключение отображения/скрытия списка пользователей
     toggleUserList(event) {
-        this.setState({isShowUserList: !this.state.isShowUserList});
+        this.setState({'isShowUserList': !this.state.isShowUserList});
         event.preventDefault();
     }
 
+    // выход пользователя из приложения и удаления ника из sessionStorage
     userLogout(event) {
-        /*fetch('http://localhost:3333/user/logout', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json;charset=utf-8'
-            },
-            body: JSON.stringify({userName: this.state.userName})
-        }).then(response => response.json()).then(result => console.log(result));*/
-
-        //delete localStorage.userName;
         event.preventDefault();
         delete sessionStorage.userName;
         window.location.assign(`http://localhost:3000/`);
@@ -87,12 +82,12 @@ export class Chat extends Component{
 
     render() {
         if (this.state.userName === undefined) {
-            return <Enter isRedirection={true} roomID={this.state.roomID} onUserNameChange={this.setUserName}/>
+            return <Enter isRedirection={true} roomID={this.state.roomID} onUserNameChange={this.setUserName} isBadName={this.state.isBadName}/>
         }
         else {
             let userList;
             if (this.state.isShowUserList) {
-                userList = <UsersList messages={this.state.usersInChat} id={'usersList'}/>;
+                userList = <UsersList list={this.state.usersInChat} id={'usersList'}/>;
             }
             return (
                 <div>
@@ -107,10 +102,10 @@ export class Chat extends Component{
                             <input type="submit" value="" id="userShowButton" title="Показать/скрыть список пользователей"/>
                         </form>
                         <div id="messageArea">
-                            <TextList messages={this.state.messages} id={'messagesList'}/>
+                            <TextList list={this.state.messages} id={'messagesList'}/>
                             <form onSubmit={this.sendMessage}>
                                 <input type="text" onChange={this.changeMessage} placeholder="Сообщение..." value={this.state.userMessage} id="input"/>
-                                <input type="submit" value="Отправить" id="submit" disabled="true"/>
+                                <input type="submit" value="Отправить" id="submit" disabled={true}/>
                             </form>
                         </div>
                     </div>
