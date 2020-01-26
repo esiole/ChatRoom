@@ -15,74 +15,64 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-let rooms = new Set();
-
-io.sockets.on('connection', (socket) => {
-    socket.on('connect', (msg) => {
-        socket["name"] = msg.name;
-    });
-
-    socket.on('disconnect', (msg) => {});
-});
-
+let rooms = new Set();  // существующие комнаты
 let abc = "abcdefghijklmnopqrstuvwxyz";
-function generateChatRoomId() {
+
+// создание новой чат-комнаты
+function generateChatRoom() {
     let roomID = '';
     for (let i = 0; i < 5; i++) {
         roomID += abc[Math.floor(Math.random() * abc.length)];
     }
     if (!rooms.has(roomID)) {
         rooms.add(roomID);
-
-        let users = new Set();
-        //let users = [];
-        io.of(`/${roomID}`).on('connection', (socket) => {
-            socket.on('start', (msg) => {
-                socket['name'] = msg.name;
-                if (users.has(msg.name)) {
-                    //пользоватеь уже был введён
-                    socket.json.emit('badName', {});
-                } else {
-                    users.add(msg.name);
-                    //users.push(msg.name);
-                    socket.json.emit('users', {users: [...users]});
-                    socket.broadcast.json.emit('users', {users: [...users]});
-                    //console.log(users);
-                    //socket.json.emit('users', {users: users});
-                    //socket.broadcast.json.emit('users', {users: users});
-                }
-            });
-
-            socket.on('disconnect', (msg) => {
-                users.delete(`${socket['name']}`);
-                socket.json.emit('users', {users: [...users]});
-                socket.broadcast.json.emit('users', {users: [...users]});
-            });
-
-            socket.on('msg', (msg) => {
-                let message = {...msg};
-                message.time = new Date().toLocaleTimeString('ru', {hour12: false}).substr(0, 8);
-                socket.json.emit('msg', message);
-                socket.broadcast.json.emit('msg', message);
-            });
-        });
-
+        createSocket(roomID);
     } else {
-        roomID = generateChatRoomId();
+        roomID = generateChatRoom();
     }
     return roomID;
 }
 
+// создание пространства имён сокетов для чат-комнаты
+function createSocket(roomID) {
+    let users = new Set();
+    io.of(`/${roomID}`).on('connection', (socket) => {
+        socket.on('start', (msg) => {
+            if (users.has(msg.name)) {  // если имя уже занято, то сообщить об этом и не добавлять его
+                send(socket, 'badName', {}, false);
+            } else {
+                socket['name'] = msg.name;
+                users.add(msg.name);
+                send(socket, 'users', {users: [...users]});
+            }
+        });
+
+        socket.on('disconnect', (msg) => {
+            users.delete(`${socket['name']}`);
+            if (users.size === 0) {     // кода комнату покинули все пользователи, она удаляется
+                rooms.delete(roomID);
+            }
+            send(socket, 'users', {users: [...users]});
+        });
+
+        socket.on('msg', (msg) => {     // отправка нового сообщения в чат
+            let message = {...msg};
+            message.time = new Date().toLocaleTimeString('ru', {hour12: false}).substr(0, 8);
+            send(socket, 'msg', message);
+        });
+    });
+}
+
+// отправка сообщений по сокетам
+function send(socket, header, json, broadcast = true) {
+    socket.json.emit(header, json);
+    if (broadcast) socket.broadcast.json.emit(header, json);
+}
+
 app.get('/id/get', function (req, res) {
-    let roomID = generateChatRoomId();
+    let roomID = generateChatRoom();
     res.json({'id': roomID});
     console.log(roomID);
-});
-
-app.post('/id/delete', function (req, res) {
-    rooms.delete(req.body.id);
-    res.json({'id': req.body.id}); //что вернуть?
-    console.log(rooms);
 });
 
 app.listen(3333);

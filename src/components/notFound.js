@@ -1,4 +1,4 @@
-//компонент для страницы с несуществующим URL
+// компонент для страницы с несуществующим URL
 import React, {Component} from "react";
 
 export class NotFound extends Component{
